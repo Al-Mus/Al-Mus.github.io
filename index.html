@@ -1,48 +1,182 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Al-Mus Projects</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #121212;
-      color: #fff;
-      text-align: center;
-      padding: 50px;
-    }
-    h1 {
-      margin-bottom: 50px;
-      font-size: 2.5em;
-    }
-    .projects {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 20px;
-    }
-    .project {
-      background-color: #1e1e1e;
-      padding: 25px 40px;
-      border-radius: 12px;
-      text-decoration: none;
-      color: #fff;
-      font-size: 1.2em;
-      transition: 0.3s;
-      min-width: 180px;
-    }
-    .project:hover {
-      background-color: #333;
-      transform: scale(1.05);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Al-Mus Projects</title>
+<style>
+body, html { margin:0; padding:0; height:100%; font-family: Arial; overflow:hidden; }
+canvas { position:fixed; top:0; left:0; z-index:-1; }
+
+:root { --bg-color: #121212; --text-color: #fff; --btn-bg: rgba(30,30,30,0.8); --btn-hover: rgba(255,255,255,0.2);}
+body[data-theme="dark"] { --bg-color: #121212; --text-color: #fff; --btn-bg: rgba(30,30,30,0.8);}
+body[data-theme="matrix"] { --bg-color: #000; --text-color: #0F0; --btn-bg: rgba(0,0,0,0.7);}
+body[data-theme="gradient"] { --bg-color: #87CEEB; --text-color: #000; --btn-bg: rgba(255,255,255,0.2);}
+
+body { background: var(--bg-color); color: var(--text-color); }
+
+/* Верхние мини-закладки соцсетей */
+.top-tabs { position: fixed; top: 10px; left:50%; transform:translateX(-50%);
+  display:flex; gap:10px; z-index:10; }
+.tab { width:35px; height:35px; background: var(--btn-bg);
+  color: var(--text-color); display:flex; justify-content:center; align-items:center;
+  border-radius:10px; font-weight:bold; cursor:pointer; position:relative; transition:0.3s; }
+.tab:hover { background: var(--btn-hover); }
+.tab .tooltip { position:absolute; bottom:-25px; left:50%; transform:translateX(-50%);
+  background:#333; padding:3px 7px; border-radius:5px; font-size:0.7em; opacity:0;
+  pointer-events:none; transition:0.3s; white-space:nowrap; }
+.tab:hover .tooltip { opacity:1; }
+
+/* Вертикальное меню слева */
+.side-menu { position: fixed; top:50%; left:0; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:15px; z-index:10; }
+.side-menu button { background: var(--btn-bg); color: var(--text-color); border:none;
+  padding:10px 20px; border-radius:10px 0 0 10px; cursor:pointer; transition:0.3s; }
+.side-menu button:hover { background: var(--btn-hover); }
+
+/* Всплывающие окна */
+.popup { position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0);
+  background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding:20px 30px;
+  border-radius:15px; color: var(--text-color); min-width:200px; text-align:center;
+  z-index:10; transition: transform 0.3s ease, opacity 0.3s ease; opacity:0; }
+.popup.show { transform:translate(-50%, -50%) scale(1); opacity:1; }
+.popup .close { margin-top:15px; cursor:pointer; color:#00aced; font-weight:bold; }
+
+/* Счётчик посещений */
+.counter { position:fixed; bottom:10px; left:50%; transform:translateX(-50%);
+  color: var(--text-color); font-size:1em; z-index:10; }
+.project-link, .theme-btn { display:block; background: var(--btn-bg); color: var(--text-color);
+  margin:10px auto; padding:10px 15px; border-radius:10px; text-decoration:none;
+  transition:0.3s; width:150px; text-align:center; }
+.project-link:hover, .theme-btn:hover { background: var(--btn-hover); }
+
+</style>
 </head>
-<body>
-  <h1>Мои проекты</h1>
-  <div class="projects">
-    <a href="https://al-mus.github.io/messenger/" class="project">Messenger</a>
-    <a href="https://al-mus.github.io/rp-downloader/" class="project">RP Downloader</a>
-  </div>
+<body data-theme="dark">
+
+<canvas id="bgCanvas"></canvas>
+
+<!-- Верхние мини-закладки соцсетей -->
+<div class="top-tabs">
+  <div class="tab" data-info="GitHub: github.com/Al-Mus">G<div class="tooltip">GitHub</div></div>
+  <div class="tab" data-info="Discord: al_mus">D<div class="tooltip">Discord</div></div>
+  <div class="tab" data-info="Telegram: @AlMus10">T<div class="tooltip">Telegram</div></div>
+</div>
+
+<!-- Вертикальное меню -->
+<div class="side-menu">
+  <button data-window="author">Автор</button>
+  <button data-window="projects">Проекты</button>
+  <button data-window="theme">Тема</button>
+</div>
+
+<div class="counter">Посещений: <span id="visitCount">0</span></div>
+
+<!-- Универсальная всплывашка -->
+<div id="popup" class="popup">
+  <div id="popupContent"></div>
+  <div class="close" onclick="closePopup()">Закрыть</div>
+</div>
+
+<script>
+// Темы
+const themes = ["dark","matrix","gradient"];
+let currentTheme = 0;
+const popup = document.getElementById('popup');
+const popupContent = document.getElementById('popupContent');
+function closePopup(){ popup.classList.remove('show'); }
+
+// Верхние табы соцсетей
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    popupContent.textContent = t.dataset.info;
+    popup.classList.add('show');
+  });
+});
+
+// Меню слева
+document.querySelectorAll('.side-menu button[data-window]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const win = b.dataset.window;
+    if(win==="theme"){
+      popupContent.innerHTML = `<b>Выбор темы:</b><br>
+        <button class="theme-btn" onclick="setTheme(0)">Тёмная</button>
+        <button class="theme-btn" onclick="setTheme(1)">Матрикс</button>
+        <button class="theme-btn" onclick="setTheme(2)">Градиент</button>`;
+    } else if(win==="projects"){
+      popupContent.innerHTML = `<b>Мои проекты:</b><br>
+        <a href="https://al-mus.github.io/messenger/" class="project-link">Messenger (локально)</a>
+        <a href="https://al-mus.github.io/rp-downloader/" class="project-link">RP Downloader</a>`;
+    } else if(win==="author"){
+      popupContent.innerHTML = `<b>Автор: Al-Mus</b><br>
+        Discord: al_mus<br>
+        Telegram: @AlMus10<br>
+        <br>Немного обо мне: люблю игры и другие прикольные вещи.`;
+    }
+    popup.classList.add('show');
+  });
+});
+
+function setTheme(index){ 
+  currentTheme = index;
+  document.body.dataset.theme = themes[currentTheme];
+}
+
+// Счётчик посещений
+let visits = localStorage.getItem('visitCount') || 0;
+visits++; localStorage.setItem('visitCount', visits);
+document.getElementById('visitCount').textContent = visits;
+
+// Фон
+const canvas = document.getElementById('bgCanvas');
+const ctx = canvas.getContext('2d');
+let w = canvas.width = window.innerWidth;
+let h = canvas.height = window.innerHeight;
+
+const cols = Math.floor(w/20)+1;
+const ypos = Array(cols).fill(0);
+let particles = [];
+const particleCount = 100;
+for(let i=0;i<particleCount;i++){
+  particles.push({x:Math.random()*w, y:Math.random()*h, size:Math.random()*3+2});
+}
+let mouse = {x:w/2, y:h/2};
+window.addEventListener('mousemove', e=>mouse={x:e.clientX, y:e.clientY});
+
+function animateBg(){
+  ctx.clearRect(0,0,w,h);
+  const theme = document.body.dataset.theme;
+  if(theme==="matrix"){
+    ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#0F0'; ctx.font='20px monospace';
+    for(let i=0;i<ypos.length;i++){
+      const text = String.fromCharCode(33+Math.random()*94);
+      ctx.fillText(text,i*20,ypos[i]*20);
+      if(ypos[i]*20>h && Math.random()>0.975) ypos[i]=0;
+      ypos[i]++;
+    }
+  } else if(theme==="gradient"){
+    const grd = ctx.createLinearGradient(0,0,w,h);
+    grd.addColorStop(0,"#87CEEB"); grd.addColorStop(1,"#B0E0E6");
+    ctx.fillStyle=grd; ctx.fillRect(0,0,w,h);
+    // частицы закреплены на фоне
+    for(let p of particles){
+      ctx.fillStyle='rgba(255,255,255,0.3)';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+    }
+    // сдвиг фона при движении мыши
+    const offsetX = (mouse.x - w/2)*0.02;
+    const offsetY = (mouse.y - h/2)*0.02;
+    ctx.setTransform(1,0,0,1,offsetX,offsetY);
+  } else {
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle="#121212"; ctx.fillRect(0,0,w,h);
+  }
+  requestAnimationFrame(animateBg);
+}
+animateBg();
+
+window.addEventListener('resize', ()=>{ w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight; });
+</script>
 </body>
 </html>

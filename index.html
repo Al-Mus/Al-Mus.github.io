@@ -80,7 +80,7 @@ body { background: var(--bg-color); color: var(--text-color); }
 
 <script>
 // Темы
-const themes = ["dark","matrix","gradient"];
+const themes = ["dark","matrix","gradient","night"];
 let currentTheme = 0;
 const popup = document.getElementById('popup');
 const popupContent = document.getElementById('popupContent');
@@ -102,7 +102,8 @@ document.querySelectorAll('.side-menu button[data-window]').forEach(b=>{
       popupContent.innerHTML = `<b>Выбор темы:</b><br>
         <button class="theme-btn" onclick="setTheme(0)">Тёмная</button>
         <button class="theme-btn" onclick="setTheme(1)">Матрикс</button>
-        <button class="theme-btn" onclick="setTheme(2)">Градиент</button>`;
+        <button class="theme-btn" onclick="setTheme(2)">Градиент</button>
+        <button class="theme-btn" onclick="setTheme(3)">Ночная</button>`;
     } else if(win==="projects"){
       popupContent.innerHTML = `<b>Мои проекты:</b><br>
         <a href="https://al-mus.github.io/messenger/" class="project-link">Messenger (локально)</a>
@@ -120,12 +121,26 @@ document.querySelectorAll('.side-menu button[data-window]').forEach(b=>{
 function setTheme(index){ 
   currentTheme = index;
   document.body.dataset.theme = themes[currentTheme];
+  // Адаптация кнопок под тёмный фон для night и gradient
+  document.querySelectorAll('.side-menu button, .tab').forEach(btn=>{
+    if(themes[currentTheme]==="night" || themes[currentTheme]==="gradient"){
+      btn.style.color = "#fff";
+      btn.style.backgroundColor = "rgba(0,0,0,0.4)";
+      btn.style.borderRadius = "6px";
+    } else {
+      btn.style.color = "#000";
+      btn.style.backgroundColor = "rgba(255,255,255,0.6)";
+      btn.style.borderRadius = "6px";
+    }
+  });
 }
 
-// Счётчик посещений
-let visits = localStorage.getItem('visitCount') || 0;
-visits++; localStorage.setItem('visitCount', visits);
-document.getElementById('visitCount').textContent = visits;
+// === Глобальный счётчик через CountAPI ===
+fetch('https://api.countapi.xyz/hit/al-mus.github.io/visits')
+  .then(res => res.json())
+  .then(res => {
+    document.getElementById('visitCount').textContent = res.value;
+  });
 
 // Фон
 const canvas = document.getElementById('bgCanvas');
@@ -135,17 +150,42 @@ let h = canvas.height = window.innerHeight;
 
 const cols = Math.floor(w/20)+1;
 const ypos = Array(cols).fill(0);
+
+// Частицы для градиент и night
 let particles = [];
-const particleCount = 100;
+const particleCount = 120;
 for(let i=0;i<particleCount;i++){
-  particles.push({x:Math.random()*w, y:Math.random()*h, size:Math.random()*3+2});
+  particles.push({
+    baseX: Math.random()*w,
+    baseY: Math.random()*h,
+    x:0,
+    y:0,
+    size: Math.random()*2+1.5,
+    offset: Math.random()*2*Math.PI,
+    speed: 0.2 + Math.random()*0.3,
+    glow: Math.random()*0.7+0.3
+  });
 }
+
 let mouse = {x:w/2, y:h/2};
 window.addEventListener('mousemove', e=>mouse={x:e.clientX, y:e.clientY});
 
 function animateBg(){
   ctx.clearRect(0,0,w,h);
   const theme = document.body.dataset.theme;
+
+  // Постоянный слабый blur на градиент и ночную темы
+  if(theme==="gradient" || theme==="night"){
+    ctx.filter = 'blur(1.5px)';
+  } else {
+    ctx.filter = 'none';
+  }
+
+  // Дополнительный blur при открытом popup
+  if(popup.classList.contains('show')){
+    ctx.filter = 'blur(4px)';
+  }
+
   if(theme==="matrix"){
     ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.fillRect(0,0,w,h);
     ctx.fillStyle='#0F0'; ctx.font='20px monospace';
@@ -155,28 +195,55 @@ function animateBg(){
       if(ypos[i]*20>h && Math.random()>0.975) ypos[i]=0;
       ypos[i]++;
     }
-  } else if(theme==="gradient"){
-    const grd = ctx.createLinearGradient(0,0,w,h);
-    grd.addColorStop(0,"#87CEEB"); grd.addColorStop(1,"#B0E0E6");
-    ctx.fillStyle=grd; ctx.fillRect(0,0,w,h);
-    // частицы закреплены на фоне
-    for(let p of particles){
-      ctx.fillStyle='rgba(255,255,255,0.3)';
-      ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+  } else if(theme==="gradient" || theme==="night"){
+    let bgColor;
+    if(theme==="gradient"){
+      const grd = ctx.createLinearGradient(0,0,w,h);
+      grd.addColorStop(0,"#5F9EA0"); 
+      grd.addColorStop(1,"#87CEEB");
+      bgColor = grd;
+    } else { // night
+      bgColor = "#0B1E3D";
     }
-    // сдвиг фона при движении мыши
-    const offsetX = (mouse.x - w/2)*0.02;
-    const offsetY = (mouse.y - h/2)*0.02;
-    ctx.setTransform(1,0,0,1,offsetX,offsetY);
+
+    ctx.fillStyle=bgColor;
+    ctx.fillRect(0,0,w,h);
+
+    for(let p of particles){
+      const dx = Math.sin(Date.now()*0.001*p.speed + p.offset)*10;
+      const dy = Math.cos(Date.now()*0.001*p.speed + p.offset)*10;
+      let x = p.baseX + dx;
+      let y = p.baseY + dy;
+
+      if(!/Mobi|Android/i.test(navigator.userAgent)){
+        const offsetX = (mouse.x - w/2)*0.02;
+        const offsetY = (mouse.y - h/2)*0.02;
+        x += offsetX;
+        y += offsetY;
+      }
+
+      const gradient = ctx.createRadialGradient(x,y,p.size*0.3,x,y,p.size*3);
+      gradient.addColorStop(0,'rgba(255,255,255,'+p.glow+')');
+      gradient.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(x,y,p.size,0,Math.PI*2);
+      ctx.fill();
+    }
+
   } else {
     ctx.setTransform(1,0,0,1,0,0);
     ctx.fillStyle="#121212"; ctx.fillRect(0,0,w,h);
   }
+
   requestAnimationFrame(animateBg);
 }
 animateBg();
 
-window.addEventListener('resize', ()=>{ w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight; });
+window.addEventListener('resize', ()=>{
+  w=canvas.width=window.innerWidth;
+  h=canvas.height=window.innerHeight;
+});
 </script>
 </body>
 </html>

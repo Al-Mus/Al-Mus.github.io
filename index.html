@@ -70,7 +70,9 @@ body { background: var(--bg-color); color: var(--text-color); }
   <button data-window="theme">Тема</button>
 </div>
 
-<div class="counter">Посещений: <span id="visitCount">0</span></div>
+<div class="counter">Посещений: 
+  <img src="https://visit-counter.vercel.app/counter.png?page=al-mus.github.io" alt="Visit Counter">
+</div>
 
 <!-- Универсальная всплывашка -->
 <div id="popup" class="popup">
@@ -134,13 +136,6 @@ function setTheme(index){
     }
   });
 }
-
-// === Глобальный счётчик через CountAPI ===
-fetch('https://api.countapi.xyz/hit/al-mus.github.io/visits')
-  .then(res => res.json())
-  .then(res => {
-    document.getElementById('visitCount').textContent = res.value;
-  });
 
 // Фон
 const canvas = document.getElementById('bgCanvas');
